@@ -875,10 +875,11 @@ class TestRequests:
         assert prep.body == 'test=foo&test=baz'
 
     def test_different_encodings_dont_break_post(self, httpbin):
-        r = requests.post(httpbin('post'),
-            data={'stuff': json.dumps({'a': 123})},
-            params={'blah': 'asdf1234'},
-            files={'file': ('test_requests.py', open(__file__, 'rb'))})
+        with open(__file__, 'rb') as f:
+            r = requests.post(httpbin('post'),
+                data={'stuff': json.dumps({'a': 123})},
+                params={'blah': 'asdf1234'},
+                files={'file': ('test_requests.py', f)})
         assert r.status_code == 200
 
     @pytest.mark.parametrize(
@@ -889,32 +890,34 @@ class TestRequests:
             {'stuff': 'elixr'.encode('utf-8')},
         ))
     def test_unicode_multipart_post(self, httpbin, data):
-        r = requests.post(httpbin('post'),
-            data=data,
-            files={'file': ('test_requests.py', open(__file__, 'rb'))})
+        with open(__file__, 'rb') as f:
+            r = requests.post(httpbin('post'),
+                data=data,
+                files={'file': ('test_requests.py', f)})
         assert r.status_code == 200
 
     def test_unicode_multipart_post_fieldnames(self, httpbin):
         filename = os.path.splitext(__file__)[0] + '.py'
-        r = requests.Request(
-            method='POST', url=httpbin('post'),
-            data={'stuff'.encode('utf-8'): 'elixr'},
-            files={'file': ('test_requests.py', open(filename, 'rb'))})
-        prep = r.prepare()
+        with open(filename, 'rb') as f:
+            r = requests.Request(
+                method='POST', url=httpbin('post'),
+                data={'stuff'.encode('utf-8'): 'elixr'},
+                files={'file': ('test_requests.py', f)})
+            prep = r.prepare()
         assert b'name="stuff"' in prep.body
         assert b'name="b\'stuff\'"' not in prep.body
 
     def test_unicode_method_name(self, httpbin):
-        files = {'file': open(__file__, 'rb')}
-        r = requests.request(
-            method=u('POST'), url=httpbin('post'), files=files)
+        with open(__file__, 'rb') as f:
+            r = requests.request(
+                method=u('POST'), url=httpbin('post'), files={'file': f})
         assert r.status_code == 200
 
     def test_unicode_method_name_with_request_object(self, httpbin):
-        files = {'file': open(__file__, 'rb')}
         s = requests.Session()
-        req = requests.Request(u('POST'), httpbin('post'), files=files)
-        prep = s.prepare_request(req)
+        with open(__file__, 'rb') as f:
+            req = requests.Request(u('POST'), httpbin('post'), files={'file': f})
+            prep = s.prepare_request(req)
         assert isinstance(prep.method, builtin_str)
         assert prep.method == 'POST'
 
@@ -930,13 +933,13 @@ class TestRequests:
         assert str(e.value) == 'You can only send PreparedRequests.'
 
     def test_custom_content_type(self, httpbin):
-        r = requests.post(
-            httpbin('post'),
-            data={'stuff': json.dumps({'a': 123})},
-            files={
-                'file1': ('test_requests.py', open(__file__, 'rb')),
-                'file2': ('test_requests', open(__file__, 'rb'),
-                    'text/py-content-type')})
+        with open(__file__, 'rb') as f1, open(__file__, 'rb') as f2:
+            r = requests.post(
+                httpbin('post'),
+                data={'stuff': json.dumps({'a': 123})},
+                files={
+                    'file1': ('test_requests.py', f1),
+                    'file2': ('test_requests', f2, 'text/py-content-type')})
         assert r.status_code == 200
         assert b"text/py-content-type" in r.request.body
 
@@ -1294,9 +1297,9 @@ class TestRequests:
         assert resp.status_code == 200
 
     def test_prepared_request_with_file_is_pickleable(self, httpbin):
-        files = {'file': open(__file__, 'rb')}
-        r = requests.Request('POST', httpbin('post'), files=files)
-        p = r.prepare()
+        with open(__file__, 'rb') as f:
+            r = requests.Request('POST', httpbin('post'), files={'file': f})
+            p = r.prepare()
 
         # Verify PreparedRequest can be pickled and unpickled
         r = pickle.loads(pickle.dumps(p))
